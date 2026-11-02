@@ -1,205 +1,186 @@
 # tinyboost
 
-A small, explicit Rust utility crate inspired by the practical breadth of C++ Boost without trying to become a giant collection of everything.
+[![CI](https://github.com/naranyala/tinyboost/actions/workflows/ci.yml/badge.svg)](https://github.com/naranyala/tinyboost/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![MSRV](https://img.shields.io/badge/MSRV-1.70-blue)](#minimum-supported-rust-version)
 
-This project exists to provide the kinds of reusable building blocks that many Rust codebases keep re-implementing: cleanup guards, lazy initialization, explicit value-or-empty wrappers, and result/option ergonomics that remain small, clear, and dependency-light.
+**tinyboost** is a small, explicit Rust utility crate inspired by the practical
+breadth of C++ Boost — without trying to become a giant collection of
+everything.
+
+It provides the kinds of reusable building blocks many Rust codebases keep
+re-implementing: cleanup guards, lazy initialization, explicit value-or-empty
+wrappers, and ergonomic result/option patterns. Zero third-party dependencies.
+Small, clear APIs. Rust idioms, not translated C++ patterns.
 
 ## Why this crate exists
 
-The Rust standard library is excellent, but intentionally narrow. It focuses on core semantics and the most common primitives. tinyboost fills the gap between `std` and real-world application code by providing a curated layer of small, opinionated utilities.
+The Rust standard library is excellent but intentionally narrow. It focuses on
+core semantics and the most common primitives. tinyboost fills the narrow gap
+between `std` and everyday application code with a curated layer of small,
+opinionated utilities.
 
 This crate is designed around the belief that:
 
-- many applications need predictable, explicit helpers
-- small utilities are better than broad frameworks
-- a narrow, stable API is safer than a huge “kitchen sink” crate
-- Rust code should read clearly, not hide behavior behind clever abstraction
+- small utilities beat broad frameworks
+- a narrow, stable API is safer than a huge "kitchen sink" crate
+- Rust code should read clearly, never hiding behavior behind clever abstraction
 
-## Goals
+## Quick start
 
-- stay small and predictable
-- favor explicitness over magic
-- provide utility patterns that are genuinely useful in everyday Rust code
-- keep the dependency footprint as close to zero as practical
-- keep the design aligned with Rust idioms, not C++ patterns translated directly
-
-## Design philosophy
-
-tinyboost is intentionally not trying to be:
-
-- a replacement for `std`
-- a complete Boost clone
-- a framework for application architecture
-- a giant library of unrelated helpers
-
-Instead, it focuses on a few foundational utility categories:
-
-- cleanup and scope lifecycle helpers
-- lazy, one-time initialization patterns
-- explicit optional/value wrappers
-- result and option augmentation for common control-flow ergonomics
-- small, composable helpers that improve code clarity without large dependencies
-
-## Current public API
-
-The current crate includes a small, coherent set of utilities:
-
-- `ScopeGuard` for RAII-style cleanup at scope exit
-- `LazyInit` for one-time lazy initialization
-- `Maybe<T>` for explicit value-or-empty semantics
-- `ResultExt` for ergonomic result hooks and mapping helpers
-
-## Installation
-
-Add to your project:
+Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
 tinyboost = "0.1"
 ```
 
-## Quick start
+Or explore everything through the prelude:
 
 ```rust
 use tinyboost::prelude::*;
 
-let value = LazyInit::new(|| 42);
-assert_eq!(value.get(), &42);
-assert_eq!(value.get(), &42);
-
-let item: Maybe<i32> = Some(7).into();
-assert_eq!(item.unwrap_or(0), 7);
-
-let result: Result<i32, &str> = Ok(5)
-    .map_ok(|n| n + 2)
-    .tap_ok(|n| assert_eq!(*n, 7));
-
-assert_eq!(result, Ok(7));
+// RAII cleanup, even on panic unwinding.
+// Run cargo test or cargo doc --open to see every utility in action.
 ```
 
-## Examples
-
-### RAII cleanup with `ScopeGuard`
+### `ScopeGuard` — cleanup at scope exit
 
 ```rust
 use tinyboost::ScopeGuard;
 
-let flag = std::rc::Rc::new(std::cell::Cell::new(false));
-let flag_clone = flag.clone();
+let mut fd = open_something();
 
-{
-    let _guard = ScopeGuard::new(move || {
-        flag_clone.set(true);
-    });
-    // scope ends here; cleanup runs automatically
-}
-
-assert!(flag.get());
+// Runs when the guard drops — including on panic unwinding.
+// Call `guard.dismiss()` to cancel the cleanup early.
+let _cleanup = ScopeGuard::new(|| {
+    fd.close();
+});
 ```
 
-### Lazy initialization
+### `LazyInit` — one-time initialization
 
 ```rust
 use tinyboost::LazyInit;
 
-let init_count = std::sync::atomic::AtomicUsize::new(0);
-let value = LazyInit::new(|| {
-    init_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    "hello"
-});
+let config = String::from("dev");
 
-assert_eq!(value.get(), &"hello");
-assert_eq!(value.get(), &"hello");
-assert_eq!(init_count.load(std::sync::atomic::Ordering::SeqCst), 1);
+// Any `Fn() -> T` works: function pointers, closures, captured state.
+let client = LazyInit::new(|| format!("client://{config}"));
+
+assert!(!client.is_initialized());
+assert_eq!(client.get(), "client://dev");
+assert!(client.is_initialized());
+assert_eq!(client.into_inner(), Some(String::from("client://dev")));
 ```
 
-### Explicit optional semantics
+### `Maybe<T>` — explicit value-or-empty
 
 ```rust
 use tinyboost::Maybe;
 
-let present: Maybe<i32> = Some(9).into();
-let absent: Maybe<i32> = None.into();
-
-assert_eq!(present.unwrap_or(0), 9);
-assert_eq!(absent.unwrap_or(42), 42);
+let response: Maybe<String> = fetch().into(); // Option -> Maybe
+let fallback = response
+    .and_then(|text| text.is_empty().then(|| text)) // None stays None
+    .unwrap_or_else(|| String::from("default"));
 ```
 
-### Result extension ergonomics
+### `ResultExt` / `OptionExt` — side-effect hooks
 
 ```rust
-use tinyboost::ResultExt;
+use tinyboost::prelude::*;
 
-let result: Result<i32, &str> = Ok(5)
-    .map_ok(|n| n + 1)
-    .tap_ok(|n| assert_eq!(*n, 6));
+let config = load_config()
+    .tap_ok(|c| log::debug!("loaded {c:?}"))
+    .tap_err(|e| log::warn!("falling back: {e}"))
+    .map_ok(|c| c.to_string());
 
-assert_eq!(result, Ok(6));
+let first = [1, 2, 3]
+    .into_iter()
+    .next()
+    .tap_some(|v| assert_eq!(*v, 1))
+    .tap_none(|| panic!("never empty here"));
 ```
 
-## Crate roadmap
+## The full API at a glance
 
-The crate is intentionally scoped to a few durable utility families:
+| Type / Trait | Purpose | Key methods |
+|---|---|---|
+| `ScopeGuard<F>` | RAII-style closure run at scope exit (drop or panic unwind) | `new`, `dismiss` |
+| `LazyInit<T, F>` | One-time lazy init; `Sync` when `T: Send + Sync` | `new`, `get`, `is_initialized`, `into_inner` |
+| `Maybe<T>` | Explicit value-or-empty wrapper, `Option`-round-trip | `is_some`, `is_none`, `map`, `and_then`, `unwrap_or`, `unwrap_or_default`, `unwrap_or_else`, `as_ref`, `as_mut`, `contains` |
+| `ResultExt` | Side-effect hooks + success mapping on `Result` | `tap_ok`, `tap_err`, `map_ok` |
+| `OptionExt` | Side-effect hooks + `Maybe` conversion on `Option` | `tap_some`, `tap_none`, `into_maybe` |
 
-### Phase 1: Foundation
+Everything is re-exported from the crate root and from
+[`tinyboost::prelude`](src/prelude.rs).
 
-- minimal utility crate skeleton
-- explicit philosophy and design constraints
-- core types (`ScopeGuard`, `LazyInit`, `Maybe`, `ResultExt`)
-- documentation and public examples
+## Design philosophy
 
-### Phase 2: Core ergonomics
+tinyboost is intentionally **not**:
 
-- refine `ResultExt` and `OptionExt`
-- add missing convenience methods
-- strengthen conversion semantics
-- add tests for core edge cases
+- a replacement for `std`
+- a complete Boost clone
+- a framework for application architecture
+- a giant library of unrelated helpers
 
-### Phase 3: Validation and polish
+Instead it delivers a few foundational utility categories: cleanup and scope
+lifecycle helpers, lazy one-time initialization, explicit optional-value
+wrappers, and result/option augmentation for common control-flow ergonomics.
+See [`docs/design-principles.md`](docs/design-principles.md) for the reasoning
+behind every constraint, and [`docs/architecture.md`](docs/architecture.md)
+for how the crate is organized.
 
-- CI workflow for formatting, linting, and tests
-- docs and example coverage
-- semver expectations and compatibility notes
-- maintainability and contributor guidance
+## Minimum supported Rust version
 
-### Phase 4: Utility expansion
+**MSRV: 1.70** (required by `std::sync::OnceLock`). The MSRV is enforced in CI
+and tracked in `Cargo.toml` as `rust-version`.
 
-- iterator-level helper functions
-- more small combinators and fallback semantics
-- improved optional-value ergonomics
-- continued narrowing of scope to avoid API bloat
+## Testing
 
-## Planned future work
+The test suite covers every public item, including panic-unwinding paths and
+multi-threaded lazy initialization:
 
-The library may eventually grow to include:
+```sh
+cargo test                # full suite
+cargo test --doc          # doc tests only
+cargo clippy --all-targets -- -D warnings   # lint gate (also run in CI)
+cargo fmt --check         # formatting gate (also run in CI)
+```
 
-- `OptionExt` for parity with `ResultExt`
-- more `Maybe<T>` convenience accessors
-- iterator helper extensions
-- fallback and coalescing utilities
-- optional `no_std` / `alloc`-driven design refinements
-- additional result/option combinators only if they genuinely improve clarity
+See [`docs/testing.md`](docs/testing.md) for the suite layout and testing
+conventions.
+
+## Project roadmap
+
+Development is organized into milestones in [`TODOS.md`](TODOS.md), and
+reasoned changes are tracked in [`CHANGELOG.md`](CHANGELOG.md). Current
+status:
+
+- ✅ Milestone 0 — foundation: core types, docs, full test suite
+- ✅ Milestone 1 — API alignment: closures, `is_initialized`, `OptionExt`,
+  `Maybe` ergonomics, `map_ok`
+- ✅ Milestone 2 — publishability: MSRV, CI, changelog, doc tests
+- 🔒 Milestone 3 — utility expansion only when a genuine use case appears
 
 ## Scope boundaries
 
-To keep the crate valuable, tinyboost deliberately avoids:
-
-- large data structures that are already available elsewhere
-- repeated `std` reimplementations
-- framework-style abstractions
-- magical or overly clever APIs
-- broad feature expansion without a clear use case
+To keep the crate valuable, tinyboost deliberately avoids: large data
+structures already served by other crates, `std` reimplementations,
+framework-style abstractions, magical or overly clever APIs, and broad feature
+expansion without a clear use case.
 
 ## Contributing
 
-Contributions are welcome if they follow the library’s principles:
+Contributions are welcome when they follow the library's principles — see
+[`docs/design-principles.md`](docs/design-principles.md) and
+[`TODOS.md`](TODOS.md) for what's worth building. Every change needs:
 
-- small and explicit APIs
+- small and explicit APIs (no cleverness)
 - strong docs and examples
 - no unnecessary dependency growth
-- test coverage for all public changes
-- consistent Rust idioms
+- test coverage
 
 ## License
 
-MIT
+MIT — see [`LICENSE`](LICENSE).
