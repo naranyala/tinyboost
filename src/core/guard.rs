@@ -1,5 +1,3 @@
-use std::cell::Cell;
-
 /// A scope guard that runs a closure when the guard is dropped.
 ///
 /// This is a lightweight RAII pattern that helps ensure cleanup or finalization

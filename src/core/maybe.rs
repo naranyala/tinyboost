@@ -54,6 +54,42 @@ impl<T> Maybe<T> {
             Self::None => T::default(),
         }
     }
+
+    /// Computes a fallback value from a closure only when `self` is `None`.
+    pub fn unwrap_or_else(self, f: impl FnOnce() -> T) -> T {
+        match self {
+            Self::Some(value) => value,
+            Self::None => f(),
+        }
+    }
+
+    /// Converts `&Maybe<T>` into `Maybe<&T>` without consuming the original.
+    pub fn as_ref(&self) -> Maybe<&T> {
+        match self {
+            Self::Some(value) => Maybe::Some(value),
+            Self::None => Maybe::None,
+        }
+    }
+
+    /// Converts `&mut Maybe<T>` into `Maybe<&mut T>` without consuming the
+    /// original, which allows mutating the inner value in place.
+    pub fn as_mut(&mut self) -> Maybe<&mut T> {
+        match self {
+            Self::Some(value) => Maybe::Some(value),
+            Self::None => Maybe::None,
+        }
+    }
+
+    /// Returns `true` if the value is `Some` and contains the given value.
+    pub fn contains(&self, value: &T) -> bool
+    where
+        T: PartialEq<T>,
+    {
+        match self {
+            Self::Some(inner) => inner == value,
+            Self::None => false,
+        }
+    }
 }
 
 impl<T> From<Option<T>> for Maybe<T> {
