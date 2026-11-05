@@ -1,3 +1,5 @@
+//! One-time, thread-safe lazy initialization using [`std::sync::OnceLock`].
+
 use std::sync::OnceLock;
 
 /// A one-time initialization value that is computed on first access.

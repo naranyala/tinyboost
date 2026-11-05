@@ -1,3 +1,5 @@
+//! A small, explicit alternative representation for an optional value.
+
 /// A small, explicit option-like wrapper for value-or-empty semantics.
 ///
 /// This is intentionally tiny and ergonomically focused: it is easy to convert
@@ -5,19 +7,24 @@
 /// common fallback logic read more clearly.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Maybe<T> {
+    /// A value is present.
     Some(T),
+    /// No value is present.
     None,
 }
 
 impl<T> Maybe<T> {
+    /// Returns `true` if this value is [`Maybe::Some`].
     pub fn is_some(&self) -> bool {
         matches!(self, Self::Some(_))
     }
 
+    /// Returns `true` if this value is [`Maybe::None`].
     pub fn is_none(&self) -> bool {
         matches!(self, Self::None)
     }
 
+    /// Maps the contained value using `f`, or preserves [`Maybe::None`].
     pub fn map<U, F>(self, f: F) -> Maybe<U>
     where
         F: FnOnce(T) -> U,
@@ -28,6 +35,7 @@ impl<T> Maybe<T> {
         }
     }
 
+    /// Calls `f` with the contained value, or preserves [`Maybe::None`].
     pub fn and_then<U, F>(self, f: F) -> Maybe<U>
     where
         F: FnOnce(T) -> Maybe<U>,
@@ -38,6 +46,7 @@ impl<T> Maybe<T> {
         }
     }
 
+    /// Returns the contained value or `default` if this is [`Maybe::None`].
     pub fn unwrap_or(self, default: T) -> T {
         match self {
             Self::Some(value) => value,
@@ -45,6 +54,7 @@ impl<T> Maybe<T> {
         }
     }
 
+    /// Returns the contained value or [`Default::default`] if this is [`Maybe::None`].
     pub fn unwrap_or_default(self) -> T
     where
         T: Default,

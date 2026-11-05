@@ -1,3 +1,5 @@
+//! Side-effect hooks and conversions for [`Option`] values.
+
 use crate::core::Maybe;
 
 /// Option extension trait mirroring the [`ResultExt`](crate::ResultExt) hooks.

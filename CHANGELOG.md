@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/) and the project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- Document the public API and enable `#![deny(missing_docs)]` to catch future documentation gaps.
+
 ## [0.1.0] — 2026-11-02
 
 ### Added

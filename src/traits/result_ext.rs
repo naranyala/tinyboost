@@ -1,3 +1,5 @@
+//! Side-effect hooks and a success mapping helper for [`Result`] values.
+
 /// Result utilities for explicit side-effect hooks and mapping helpers
 /// without changing control flow.
 pub trait ResultExt<T, E> {
