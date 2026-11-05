@@ -10,7 +10,7 @@ fn main() {
     let greeting_name = name
         .as_ref()
         .map(|value| value.trim())
-        .and_then(|value| (!value.is_empty()).then_some(value))
+        .and_then(|value| Maybe::from((!value.is_empty()).then_some(value)))
         .unwrap_or_else(|| "guest");
 
     println!("Hello, {greeting_name}!");
